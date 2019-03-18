@@ -1,6 +1,6 @@
 from numpy import prod
 import collections
-import warnings
+from warnings import warn
 
 VERBOSITY = 0
 
@@ -69,8 +69,7 @@ def shape_for_shape(shape_a, dim_b1, ndims=2, typecast=None):
         return out_shape
 
 
-# TODO docstring
-def check_constraints(param_value, param_name, constraints):
+def check_constraints(param_value, param_name, constraints, check_all=True):
     """ function for checking if a parameter value is valid within constraints.
         Parameters:
             param_value: The value of the parameter to check
@@ -96,8 +95,6 @@ def check_constraints(param_value, param_name, constraints):
             >>> assert(not check_constraints(1, 'e', v))
     """
 
-    #import ipdb
-    #ipdb.set_trace()
     def _check_constraint(item, c, item_name=None):
         """ Helper to determine if item is correctly constrained by c
             Parameters:
@@ -149,11 +146,16 @@ def check_constraints(param_value, param_name, constraints):
         elif isinstance(c, str):
             numeric = any([c.startswith(opstr) for opstr in operations.keys()])
             if numeric:
-                correct_or_dontcare = [op(item, _getval(c, opstr))        # Check operation
-                                       if _isop(c, opstr)                 # Only if operation is constraint
-                                       else True                          # OTW, don't care
-                                       for opstr, op in operations.items()]  # For all operations given
-                return all(correct_or_dontcare)
+                try:
+                    item = float(item)
+                except (ValueError, TypeError):
+                    return False
+                else:
+                    correct_or_dontcare = [op(item, _getval(c, opstr))        # Check operation
+                                           if _isop(c, opstr)                 # Only if operation is constraint
+                                           else True                          # OTW, don't care
+                                           for opstr, op in operations.items()]  # For all operations given
+                    return all(correct_or_dontcare)
             else:
                 return item == c
 
@@ -172,9 +174,12 @@ def check_constraints(param_value, param_name, constraints):
     # First get the actual constraint(s)
     constraint = constraints.get(param_name)
 
-    # If multiple constraints, check all of them
+    # If multiple constraints, check all (or any) of them
     if isiterable(constraint):
-        return all([_check_constraint(param_value, c, param_name) for c in constraint])
+        if check_all:
+            return all([_check_constraint(param_value, c, param_name) for c in constraint])
+        else:
+            return any([_check_constraint(param_value, c, param_name) for c in constraint])
 
     else:
         return _check_constraint(param_value, constraint, param_name)
@@ -206,16 +211,62 @@ class ParameterRegister(collections.OrderedDict):
         else:
             print('No defaults dictionary given - cannot set')
 
-        self.update(defaults_notset)
+        self.update(**defaults_notset)
+
+    def _err_fmt(self, key, kwarg_dict):
+        return '{} expects {} but got {}'.format(key, self.constraints[key], kwarg_dict[key])
+
+    def set(self, **kwargs):
+        no_check = kwargs.get('no_check')
+        if not no_check:
+            is_good = self.check_kwargs(**kwargs)
+            if not all(is_good.values()):
+                bad_kwargs = ', '.join([self._err_fmt(kwarg, kwargs) for kwarg, good in is_good.items() if not good])
+                raise ValueError(bad_kwargs)
+
+        for k, v in kwargs.items():
+            self[k] = v
+
+    # TODO fix this
+    #def update(self, **kwargs):
+    #    no_check = kwargs.get('no_check')
+    #    if not no_check:
+    #        is_good = self.check_kwargs(**kwargs)
+    #        if not all(is_good.values()):
+    #            bad_kwargs = ', '.join([kwarg for kwarg, good in is_good.items() if not good])
+    #            raise ValueError(bad_kwargs)
+    #    self._update(**kwargs)
 
     @property
     def hashable_str(self):
         return ','.join(['{}:{}'.format(k, v) for k, v in self.items()])
 
+    @property
+    def _pretty(self):
+        import ipdb
+        with ipdb.launch_ipdb_on_exception():
+            s = self.__class__.__name__
+            for k, v in self.items():
+                s += '\n  {}: {}'.format(k, v.__repr__())
+            s += '\nConstraints'
+            for k, v in self.constraints.items():
+                s += '\n  {}: {}'.format(k, v)
+            s += '\nDefaults'
+            for k, v in self.defaults.items():
+                s += '\n  {}: {}'.format(k, v.__repr__())
+            s += '\n'
+        return s
 
-def deprecated(x):
-    warnings.warn('', DeprecationWarning)
-    return x
+    def __repr__(self):
+        return self._pretty
+
+
+def deprecated(f):
+    def deprec_warn():
+        deprecation_msg = '{} is deprecated - consider replacing it'.format(f.__name__)
+        warn(deprecation_msg)
+        f()
+    return deprec_warn
 
 
 if __name__ == "__main__":
