@@ -18,6 +18,16 @@ def isiterable(item):
 
 
 def isoperation(string):
+    """ Determines if a string is a valid operation according to the operations
+        dictionary
+        Example:
+            >>> assert(isoperation('<='))
+            >>> assert(isoperation('>='))
+            >>> assert(isoperation('=='))
+            >>> assert(isoperation('!='))
+            >>> assert(isoperation('>'))
+            >>> assert(isoperation('<'))
+    """
     return string in operations.keys()
 
 
