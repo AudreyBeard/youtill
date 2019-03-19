@@ -21,7 +21,7 @@ def isoperation(string):
     return string in operations.keys()
 
 
-def shape_for_shape(shape_a, dim_b1, ndims=2, typecast=None):
+def shape_for_shape(shape_a, dim_b1, ndims=2):
     """ Given a tensor shape and a single dimension, computes the n-dimensional
     shape that satisfies the given single dimension, cast according to the
     typecast function
@@ -46,6 +46,10 @@ def shape_for_shape(shape_a, dim_b1, ndims=2, typecast=None):
             (24, 1)
             >>> shape_for_shape(a.shape, 12)
             (12, 2)
+            >>> shape_for_shape(a.shape, 12, ndims=3)
+            (1, 12, 2)
+            >>> shape_for_shape(a.shape, 1, ndims=5)
+            (1, 1, 1, 1, 24)
             >>> try:
             ...     shape_for_shape(a.shape, 5)
             ... except ValueError as err:
@@ -58,18 +62,18 @@ def shape_for_shape(shape_a, dim_b1, ndims=2, typecast=None):
     if int(dim_b2) != dim_b2:
         raise ValueError("{!s} is not divisible by {:d}".format(shape_a, dim_b1))  # NOQA
 
-    if ndims == 3:
-        out_shape = (1, dim_b1, int(dim_b2))
-    else:
-        out_shape = (dim_b1, int(dim_b2))
+    out_shape = [1 for i in range(ndims - 2)]
+    out_shape.extend([dim_b1, int(dim_b2)])
 
-    if typecast is not None:
-        return typecast(out_shape)
-    else:
-        return out_shape
+    return tuple(out_shape)
 
 
 def deprecated(f):
+    """ Allows function decoration to raise a warning when called
+        Raises a UserWarning instead of DeprecationWarning so that it's
+        detectable in an IPython session.
+        For use, see examples/deprecated.py
+    """
     def deprec_warn():
         deprecation_msg = '{} is deprecated - consider replacing it'.format(f.__name__)  # NOQA
         warn(deprecation_msg)
